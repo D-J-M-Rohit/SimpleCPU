@@ -65,6 +65,7 @@ If you have the files separately, organize them as follows.
 ```text
 SimpleCPU/
 ├── Makefile
+├── Project Recording.mov
 ├── README.md
 ├── docs/
 │   ├── report.pdf
@@ -354,6 +355,7 @@ Edit the `Makefile`.
 ```text
 SimpleCPU/
 ├── simple-cpu           # Main executable
+├── Project Recording.mov
 ├── Makefile
 ├── README.md        
 ├── docs/
