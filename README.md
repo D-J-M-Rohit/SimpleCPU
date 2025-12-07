@@ -433,7 +433,4 @@ SimpleCPU/
     └── factorial.bin
 ```
 
----
 
-*Last Updated  November 2025*
-*SimpleCPU Version  1.0*
