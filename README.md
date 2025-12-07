@@ -218,7 +218,7 @@ Assemble Only
 
 ---
 
-## Quick Start Examples
+## Quick Start Example
 
 ### Example 1  Factorial of 3
 
@@ -235,60 +235,7 @@ Expected output.
 === End Output ===
 ```
 
-### Example 2  Hello World (optional)
 
-```bash
-./simple-cpu run build/hello.bin
-```
-
-Expected output.
-
-```text
-=== Program Output ===
-Hello, World!
-=== End Output ===
-```
-
-### Example 3  Fibonacci Sequence (optional)
-
-```bash
-./simple-cpu run build/fibonacci.bin
-```
-
-Typical output for a simple Fibonacci program might look like.
-
-```text
-=== Program Output ===
-0
-1
-1
-2
-3
-5
-8
-13
-21
-34
-Done!
-=== End Output ===
-```
-
-### Example 4  Write Your Own Program
-
-```bash
-# 1. Create a new assembly file
-cat > programs/myprogram.asm << 'EOF'
-; My First Program
-LOAD A, 65        ; ASCII 'A'
-OUT 0xFF00, A     ; Print to STDOUT
-HLT               ; Stop
-EOF
-
-# 2. Assemble and run
-./simple-cpu asm-run programs/myprogram.asm
-```
-
----
 
 ## Troubleshooting
 
