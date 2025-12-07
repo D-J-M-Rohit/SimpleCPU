@@ -22,7 +22,7 @@ HEADERS = $(SRC_DIR)/cpu.h $(SRC_DIR)/assembler.h
 OBJECTS = $(BUILD_DIR)/main.o $(BUILD_DIR)/cpu.o $(BUILD_DIR)/assembler.o
 
 # Example assembly programs to build
-ASM_PROGRAMS = timer hello fibonacci
+ASM_PROGRAMS = timer hello fibonacci factorial
 ASM_SOURCES = $(addprefix $(PROGRAMS_DIR)/, $(addsuffix .asm, $(ASM_PROGRAMS)))
 BIN_PROGRAMS = $(addprefix $(BUILD_DIR)/, $(addsuffix .bin, $(ASM_PROGRAMS)))
 

@@ -68,11 +68,9 @@ int asm_add_label(Assembler *asm_ctx, const char *name, uint16_t address) {
         return -1;
     }
     
-    // Check for duplicate label names
     for (int i = 0; i < asm_ctx->label_count; i++) {
         if (strcmp(asm_ctx->labels[i].name, name) == 0) {
-            fprintf(stderr, "Error: Duplicate label '%s'\n", name);
-            return -1;
+            return 0;
         }
     }
     
@@ -138,7 +136,11 @@ static char *trim(char *str) {
 //=========================================================
 
 static int asm_parse_line(Assembler *asm_ctx, char *line) {
-    // First trim leading/trailing whitespace
+    char line_copy[MAX_LINE_LEN];
+    strncpy(line_copy, line, MAX_LINE_LEN - 1);
+    line_copy[MAX_LINE_LEN - 1] = '\0';
+    line = line_copy;
+    
     line = trim(line);
     
     // Skip empty lines
@@ -173,7 +175,6 @@ static int asm_parse_line(Assembler *asm_ctx, char *line) {
         // Compute label address as base program address (0x0100)
         // plus current output size (instruction bytes so far).
         uint16_t label_addr = 0x0100 + asm_ctx->output_size;
-        printf("DEBUG: Storing label '%s' at address 0x%04X\n", label, label_addr);
         if (asm_add_label(asm_ctx, label, label_addr) < 0) {
             return -1;
         }
@@ -501,20 +502,15 @@ static int asm_parse_line(Assembler *asm_ctx, char *line) {
                      (strcmp(instr, "JNC") == 0) ? OP_JNC : OP_CALL;
         
         uint16_t addr;
-        // First, try to parse the operand as a numeric literal
         if (asm_parse_number(arg1, &addr) < 0) {
-            // Not a number → treat as label and look it up in symbol table
-            printf("DEBUG: Looking up label '%s'\n", arg1);
             if (asm_find_label(asm_ctx, arg1, &addr) < 0) {
                 fprintf(stderr, "Line %d: Undefined label '%s'\n", 
                         asm_ctx->current_line, arg1);
                 return -1;
             }
-            printf("DEBUG: Found label '%s' at address 0x%04X\n", arg1, addr);
             emit_byte(asm_ctx, op);
-            emit_word(asm_ctx, addr);  // Use resolved label address
+            emit_word(asm_ctx, addr);
         } else {
-            // Direct numeric address
             emit_byte(asm_ctx, op);
             emit_word(asm_ctx, addr);
         }
@@ -588,6 +584,66 @@ int asm_assemble_string(Assembler *asm_ctx, const char *source) {
 }
 
 // Assemble from a file on disk
+static int scan_labels_only(Assembler *asm_ctx, char *line) {
+    char line_copy[MAX_LINE_LEN];
+    strncpy(line_copy, line, MAX_LINE_LEN - 1);
+    line_copy[MAX_LINE_LEN - 1] = '\0';
+    line = line_copy;
+    
+    line = trim(line);
+    if (line[0] == '\0') return 0;
+    
+    char *comment = strchr(line, ';');
+    if (comment) *comment = '\0';
+    comment = strchr(line, '#');
+    if (comment) *comment = '\0';
+    line = trim(line);
+    if (line[0] == '\0') return 0;
+    
+    char *colon = strchr(line, ':');
+    if (colon) {
+        *colon = '\0';
+        char *label = trim(line);
+        for (char *p = label; *p; p++) *p = toupper(*p);
+        uint16_t label_addr = 0x0100 + asm_ctx->output_size;
+        if (asm_add_label(asm_ctx, label, label_addr) < 0) {
+            return -1;
+        }
+        line = trim(colon + 1);
+        if (line[0] == '\0') return 0;
+    }
+    
+    char instr[32] = {0};
+    char *space = strchr(line, ' ');
+    if (space) {
+        size_t len = space - line;
+        strncpy(instr, line, len);
+        instr[len] = '\0';
+    } else {
+        strcpy(instr, line);
+    }
+    
+    for (char *p = instr; *p; p++) *p = toupper(*p);
+    
+    if (strcmp(instr, "NOP") == 0 || strcmp(instr, "HLT") == 0 || strcmp(instr, "RET") == 0) {
+        asm_ctx->output_size += 1;
+    } else if (strcmp(instr, "LOAD") == 0 || strcmp(instr, "ADDI") == 0 || 
+               strcmp(instr, "SUBI") == 0 || strcmp(instr, "CMPI") == 0 ||
+               strcmp(instr, "OUT") == 0 || strcmp(instr, "IN") == 0) {
+        asm_ctx->output_size += 4;
+    } else if (strcmp(instr, "JMP") == 0 || strcmp(instr, "JZ") == 0 || 
+               strcmp(instr, "JNZ") == 0 || strcmp(instr, "JC") == 0 || 
+               strcmp(instr, "JNC") == 0 || strcmp(instr, "CALL") == 0 ||
+               strcmp(instr, "STORE") == 0 || strcmp(instr, "SHL") == 0 || 
+               strcmp(instr, "SHR") == 0) {
+        asm_ctx->output_size += 3;
+    } else {
+        asm_ctx->output_size += 2;
+    }
+    
+    return 0;
+}
+
 int asm_assemble_file(Assembler *asm_ctx, const char *filename) {
     FILE *f = fopen(filename, "r");
     if (!f) {
@@ -595,23 +651,44 @@ int asm_assemble_file(Assembler *asm_ctx, const char *filename) {
         return -1;
     }
     
+    char **lines = malloc(1000 * sizeof(char*));
+    int line_count = 0;
     char line[MAX_LINE_LEN];
+    
+    while (fgets(line, sizeof(line), f)) {
+        line[strcspn(line, "\r\n")] = '\0';
+        lines[line_count++] = strdup(line);
+    }
+    fclose(f);
+    
+    asm_ctx->label_count = 0;
+    asm_ctx->output_size = 0;
     asm_ctx->current_line = 0;
     
-    // Read file line-by-line
-    while (fgets(line, sizeof(line), f)) {
-        asm_ctx->current_line++;
-        // Strip newline characters
-        line[strcspn(line, "\r\n")] = '\0';
-        
-        if (asm_parse_line(asm_ctx, line) < 0) {
-            asm_ctx->has_errors = true;
-            fclose(f);
+    for (int i = 0; i < line_count; i++) {
+        asm_ctx->current_line = i + 1;
+        if (scan_labels_only(asm_ctx, lines[i]) < 0) {
+            for (int j = 0; j < line_count; j++) free(lines[j]);
+            free(lines);
             return -1;
         }
     }
     
-    fclose(f);
+    asm_ctx->output_size = 0;
+    asm_ctx->current_line = 0;
+    
+    for (int i = 0; i < line_count; i++) {
+        asm_ctx->current_line = i + 1;
+        if (asm_parse_line(asm_ctx, lines[i]) < 0) {
+            for (int j = 0; j < line_count; j++) free(lines[j]);
+            free(lines);
+            return -1;
+        }
+    }
+    
+    for (int i = 0; i < line_count; i++) free(lines[i]);
+    free(lines);
+    
     return 0;
 }
 
